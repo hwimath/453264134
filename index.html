@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>거듭제곤근 빈출 (1)</title>
+  <style>
+    body { background: #fff; color: #000; font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+    .hidden { display: none; }
+    button { background: #fff; color: #000; border: 1px solid #000; padding: 8px 16px; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .center { text-align: center; }
+    .energy-bar-container { width: 100%; height: 20px; border: 1px solid #000; margin: 10px 0; }
+    .energy-bar { width: 100%; height: 100%; background: #000; }
+    .option { margin: 6px 0; padding: 6px; border: 1px solid #000; cursor: pointer; }
+    .option.disabled { pointer-events: none; }
+    .feedback { margin-top: 10px; font-weight: bold; }
+    .info { margin: 10px 0; }
+  </style>
+  <!-- MathJax 라이브러리 -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+</head>
+<body>
+  <!-- 시작 화면 -->
+  <div id="start-screen" class="center">
+    <h1>거듭제곤근 빈출 (1)</h1>
+    <p>이름: <input type="text" id="playerName" /></p>
+    <p>난이도 선택:</p>
+    <p>
+      <label><input type="radio" name="difficulty" value="최상"> 최상 (20초, 문제당 20점)</label><br>
+      <label><input type="radio" name="difficulty" value="상"> 상 (30초, 문제당 15점)</label><br>
+      <label><input type="radio" name="difficulty" value="중"> 중 (40초, 문제당 13점)</label><br>
+      <label><input type="radio" name="difficulty" value="하"> 하 (시간제한 없음, 문제당 10점)</label>
+    </p>
+    <button id="startButton">시작</button>
+  </div>
+
+  <!-- 게임 화면 -->
+  <div id="game-screen" class="hidden">
+    <div class="info">
+      <span id="livesDisplay">남은 기회: 3</span> | 
+      <span id="scoreDisplay">점수: 0</span> | 
+      <span id="timeDisplay">총 경과 시간: 0초</span>
+    </div>
+    <div class="energy-bar-container">
+      <div id="energyBar" class="energy-bar"></div>
+    </div>
+    <div id="questionArea"></div>
+    <div id="feedback" class="feedback"></div>
+    <button id="nextButton" disabled>다음 문제</button>
+  </div>
+
+  <!-- 게임 종료 화면 -->
+  <div id="gameover-screen" class="hidden center">
+    <h2>게임 오버</h2>
+    <p id="finalScore"></p>
+    <p id="finalTime"></p>
+    <button id="sendScoreButton">점수전송</button>
+    <pre id="response"></pre>
+  </div>
+
+  <script>
+    // 문제 데이터 (21문항). 각 문제에서 필요한 정의는 문제문 안에 직접 기술했습니다.
+    // 'correct'는 choices 배열에서의 정답 인덱스
+    const questions = [
+      // 1
+      {
+        question: "양의 실수 \\(a\\)와 짝수 자연수 \\(n\\)에 대해, \\(a\\)의 \\(n\\)제곱근 중 실수인 것은 무엇인가? (가장 적절한 설명을 고르시오.)",
+        choices: [
+          "\\(\\sqrt[n]{a}\\)",
+          "\\(-\\sqrt[n]{a}\\)",
+          "\\(\\sqrt[n]{a}\\)와 \\(-\\sqrt[n]{a}\\)",
+          "유일하게 \\(\\sqrt[n]{a}\\)만",
+          "실수는 존재하지 않는다."
+        ],
+        correct: 2
+      },
+      // 2
+      {
+        question: "음의 실수 \\(a\\)와 홀수 자연수 \\(n\\)에 대해, \\(a\\)의 \\(n\\)제곱근 중 실수인 것은 무엇인가? (가장 적절한 설명을 고르시오.)",
+        choices: [
+          "\\(\\sqrt[n]{a}\\)는 양수이다.",
+          "\\(\\sqrt[n]{a}\\)와 \\(-\\sqrt[n]{a}\\) 모두 실수이다.",
+          "\\(-\\sqrt[n]{-a}\\)만 유일한 실수이다.",
+          "\\(\\sqrt[n]{-a}\\)만 유일한 실수이다.",
+          "실수는 존재하지 않는다."
+        ],
+        correct: 2
+      },
+      // 3
+      {
+        question: "다음 계산의 결과를 구하시오. \\(\\sqrt[3]{-27} + \\sqrt[4]{256}\\)",
+        choices: [
+          "\\(1\\)",
+          "\\(7\\)",
+          "\\(0\\)",
+          "\\(-7\\)",
+          "\\(-1\\)"
+        ],
+        correct: 0
+      },
+      // 4
+      {
+        question: "다음 식의 결과로 옳은 것은? \\(\\sqrt[5]{-32}\\)",
+        choices: [
+          "\\(2\\)",
+          "\\(-2\\)",
+          "\\(32\\)",
+          "\\(-32\\)",
+          "\\(0\\)"
+        ],
+        correct: 1
+      },
+      // 5
+      {
+        question: "\\(n\\)이 홀수일 때, 음수 \\(a\\)의 \\(n\\)제곱근에 대한 성질로 옳은 것은?",
+        choices: [
+          "\\(\\sqrt[n]{a}\\)는 양수이다.",
+          "\\(\\sqrt[n]{a}\\)는 0이다.",
+          "\\(\\sqrt[n]{a}\\)와 \\(-\\sqrt[n]{a}\\) 모두 실수이다.",
+          "\\(\\sqrt[n]{a}\\)는 복소수만 가능하다.",
+          "\\(\\sqrt[n]{a}\\)는 \\(-\\sqrt[n]{-a}\\)와 같다."
+        ],
+        correct: 4
+      },
+      // 6
+      {
+        question: "다음 식의 결과로 옳은 것은? \\(\\sqrt[4]{81}\\)",
+        choices: [
+          "\\(3\\)",
+          "\\(-3\\)",
+          "\\(\\pm 3\\)",
+          "\\(9\\)",
+          "\\(-9\\)"
+        ],
+        correct: 2
+      },
+      // 7
+      {
+        question: "양의 실수 \\(a\\)에 대하여, \\(\\sqrt{a^2}\\)의 값은 무엇인가?",
+        choices: [
+          "\\(a\\)",
+          "\\(-a\\)",
+          "\\(|a|\\)",
+          "\\(0\\)",
+          "\\(a^2\\)"
+        ],
+        correct: 0
+      },
+      // 8
+      {
+        question: "실수 \\(x\\)의 \\(n\\)제곱근 중에서 실수인 것의 개수를 \\(S(n,x)\\)로 정의하자. 즉, \\(S(n,x) = \\) {\\(y\\in\\mathbb{R}\\) | \\(y^n = x\\)}의 크기. 이때 \\(S(2,0)\\)의 값은?",
+        choices: [
+          "\\(0\\)",
+          "\\(1\\)",
+          "\\(2\\)",
+          "\\(\\infty\\)",
+          "정의 불가"
+        ],
+        correct: 1
+      },
+      // 9
+      {
+        question: "실수 \\(x\\)의 \\(n\\)제곱근 중에서 실수인 것의 개수를 \\(S(n,x)\\)라 하자. 이때 \\(S(4,16)\\)의 값은?",
+        choices: [
+          "\\(1\\)",
+          "\\(2\\)",
+          "\\(3\\)",
+          "\\(4\\)",
+          "\\(0\\)"
+        ],
+        correct: 1
+      },
+      // 10
+      {
+        question: "실수 \\(x\\)의 \\(n\\)제곱근 중에서 실수인 것의 개수를 \\(S(n,x)\\)라 하자. 이때 \\(S(3,-8)\\)의 값은?",
+        choices: [
+          "\\(0\\)",
+          "\\(1\\)",
+          "\\(2\\)",
+          "\\(3\\)",
+          "\\(4\\)"
+        ],
+        correct: 1
+      },
+      // 11
+      {
+        question: "실수 \\(x\\)의 \\(n\\)제곱근 중에서 실수인 것의 개수를 \\(S(n,x)\\)라 하자. 이때 \\(S(6,64)\\)의 값은?",
+        choices: [
+          "\\(1\\)",
+          "\\(2\\)",
+          "\\(3\\)",
+          "\\(0\\)",
+          "\\(4\\)"
+        ],
+        correct: 1
+      },
+      // 12
+      {
+        question: "실수 \\(x\\)의 \\(n\\)제곱근 중에서 실수인 것의 개수를 \\(S(n,x)\\)라 하자. 이때 \\(S(2,-9)\\)의 값은?",
+        choices: [
+          "\\(0\\)",
+          "\\(1\\)",
+          "\\(2\\)",
+          "\\(3\\)",
+          "\\(4\\)"
+        ],
+        correct: 0
+      },
+      // 13
+      {
+        question: "실수 \\(x\\)의 \\(n\\)제곱근 중에서 실수인 것의 개수를 \\(S(n,x)\\)라 하자. 이때 \\(S(5,32)\\)의 값은?",
+        choices: [
+          "\\(1\\)",
+          "\\(2\\)",
+          "\\(4\\)",
+          "\\(3\\)",
+          "\\(0\\)"
+        ],
+        correct: 0
+      },
+      // 14
+      {
+        question: "실수 \\(x\\)의 \\(n\\)제곱근 중에서 실수인 것의 개수를 \\(S(n,x)\\)라 하자. 이때 \\(S(8,81)\\)의 값은?",
+        choices: [
+          "\\(1\\)",
+          "\\(2\\)",
+          "\\(3\\)",
+          "\\(0\\)",
+          "\\(4\\)"
+        ],
+        correct: 1
+      },
+      // 15
+      {
+        question: "모든 실수 \\(x\\)에 대하여 \\(x^2 - 2ax + 4a\\)의 네제곱근 중 음수가 존재하려면, 가능한 자연수 \\(a\\)는 무엇인가?",
+        choices: [
+          "\\(a=1\\)만",
+          "\\(a=1,2\\)",
+          "\\(a=2,3\\)",
+          "\\(a=1,3\\)",
+          "\\(a=1,2,3\\)"
+        ],
+        correct: 4
+      },
+      // 16
+      {
+        question: "모든 실수 \\(x\\)에 대하여 \\(x^2 + 2ax + 4a\\)의 네제곱근 중 음수가 존재하려면, 가능한 자연수 \\(a\\)는 무엇인가?",
+        choices: [
+          "\\(a=1\\)만",
+          "\\(a=1,2\\)",
+          "\\(a=2,3\\)",
+          "\\(a=1,3\\)",
+          "\\(a=1,2,3\\)"
+        ],
+        correct: 4
+      },
+      // 17
+      {
+        question: "모든 실수 \\(x\\)에 대하여 \\(x^2 - 4ax + 4a^2 - 1\\)의 네제곱근 중 음수가 존재하려면, \\(a\\)의 범위는?",
+        choices: [
+          "모든 \\(a\\)",
+          "\\(a=0\\)일 때만",
+          "\\(a\\)가 0이 아닐 때",
+          "\\(a\\)가 음수일 때만",
+          "해당하는 \\(a\\)가 없음"
+        ],
+        correct: 4
+      },
+      // 18
+      {
+        question: "모든 실수 \\(x\\)에 대하여 \\(x^2 + 4ax + 4a^2 - 1\\)의 네제곱근 중 음수가 존재하려면, \\(a\\)의 범위는?",
+        choices: [
+          "모든 \\(a\\)",
+          "\\(a=0\\)일 때만",
+          "\\(a\\)가 양수일 때만",
+          "\\(a\\)가 음수일 때만",
+          "해당하는 \\(a\\)가 없음"
+        ],
+        correct: 4
+      },
+      // 19
+      {
+        question: "모든 실수 \\(x\\)에 대하여 \\(x^2 - 6ax + 9a^2 + 4\\)의 네제곱근 중 음수가 존재하려면, \\(a\\)는 어떻게 되어야 하는가?",
+        choices: [
+          "모든 \\(a\\)에 대해 가능",
+          "\\(a=0\\)일 때만 가능",
+          "\\(a\\)가 양수일 때만 가능",
+          "\\(a\\)가 음수일 때만 가능",
+          "\\(a\\)가 \\(\\pm 1\\)일 때만 가능"
+        ],
+        correct: 0
+      },
+      // 20
+      {
+        question: "모든 실수 \\(x\\)에 대하여 \\(x^2 - 2ax + a^2 - 4\\)의 네제곱근 중 음수가 존재하려면, \\(a\\)에 관한 조건은?",
+        choices: [
+          "\\(a^2 > 4\\)",
+          "\\(a^2 = 4\\)",
+          "\\(a^2 < 4\\)",
+          "모든 \\(a\\)",
+          "해당하는 \\(a\\)가 없음"
+        ],
+        correct: 4
+      },
+      // 21
+      {
+        question: "모든 실수 \\(x\\)에 대하여 \\(x^2 - 2ax + a^2 + 1\\)의 네제곱근 중 음수가 존재하려면, \\(a\\)에 관계없이 성립하는가?",
+        choices: [
+          "성립하지 않는다.",
+          "\\(a=0\\)일 때만 성립한다.",
+          "\\(a\\)가 양수일 때만 성립한다.",
+          "\\(a\\)가 음수일 때만 성립한다.",
+          "모든 \\(a\\)에 대해 성립한다."
+        ],
+        correct: 4
+      }
+    ];
+
+    // 전역 변수
+    let playerName = "";
+    let difficulty = "";
+    let questionTimeLimit = 0; // 초 (하: Infinity)
+    let pointsPerQuestion = 0;
+    let score = 0;
+    let lives = 3;
+    let totalTime = 0; // 초
+    let overallTimerInterval = null;
+    let questionTimerInterval = null;
+    let currentQuestion = null;
+    let currentOptions = [];
+    let questionPool = [];
+    let currentQuestionIndex = 0;
+    
+    // 시작 화면 요소
+    const startScreen = document.getElementById('start-screen');
+    const startButton = document.getElementById('startButton');
+    const playerNameInput = document.getElementById('playerName');
+    
+    // 게임 화면 요소
+    const gameScreen = document.getElementById('game-screen');
+    const livesDisplay = document.getElementById('livesDisplay');
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const energyBar = document.getElementById('energyBar');
+    const questionArea = document.getElementById('questionArea');
+    const feedbackDiv = document.getElementById('feedback');
+    const nextButton = document.getElementById('nextButton');
+    
+    // 게임 종료 화면 요소
+    const gameoverScreen = document.getElementById('gameover-screen');
+    const finalScoreP = document.getElementById('finalScore');
+    const finalTimeP = document.getElementById('finalTime');
+    const sendScoreButton = document.getElementById('sendScoreButton');
+    const responsePre = document.getElementById('response');
+
+    // 난이도에 따른 설정
+    function setDifficultyParams(diff) {
+      switch(diff) {
+        case "최상":
+          questionTimeLimit = 20;
+          pointsPerQuestion = 20;
+          break;
+        case "상":
+          questionTimeLimit = 30;
+          pointsPerQuestion = 15;
+          break;
+        case "중":
+          questionTimeLimit = 40;
+          pointsPerQuestion = 13;
+          break;
+        case "하":
+          questionTimeLimit = Infinity;
+          pointsPerQuestion = 10;
+          break;
+      }
+    }
+    
+    // 배열 섞기 함수 (Fisher-Yates)
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+    
+    // 시작 버튼 클릭
+    startButton.addEventListener('click', () => {
+      playerName = playerNameInput.value.trim();
+      if (!playerName) { alert("이름을 입력하세요."); return; }
+      const diffRadio = document.querySelector('input[name="difficulty"]:checked');
+      if (!diffRadio) { alert("난이도를 선택하세요."); return; }
+      difficulty = diffRadio.value;
+      setDifficultyParams(difficulty);
+      startScreen.classList.add('hidden');
+      gameScreen.classList.remove('hidden');
+      // 게임 초기화
+      score = 0;
+      lives = 3;
+      totalTime = 0;
+      currentQuestionIndex = 0;
+      livesDisplay.innerText = "남은 기회: " + lives;
+      scoreDisplay.innerText = "점수: " + score;
+      timeDisplay.innerText = "총 경과 시간: 0초";
+      // 전체 문제 셋 섞기
+      questionPool = questions.slice();
+      shuffleArray(questionPool);
+      // 전체 타이머 시작
+      overallTimerInterval = setInterval(() => {
+        totalTime++;
+        timeDisplay.innerText = "총 경과 시간: " + totalTime + "초";
+      }, 1000);
+      loadNextQuestion();
+    });
+    
+    // 문제 출력
+    function loadNextQuestion() {
+      feedbackDiv.innerText = "";
+      nextButton.disabled = true;
+      // 에너지바 초기화
+      energyBar.style.width = "100%";
+      if (currentQuestionIndex < questionPool.length) {
+        currentQuestion = questionPool[currentQuestionIndex];
+        currentQuestionIndex++;
+      } else {
+        // 문제 다 소진하면 무작위 계속
+        currentQuestion = questions[Math.floor(Math.random() * questions.length)];
+      }
+      // 선택지 배열 생성
+      currentOptions = currentQuestion.choices.map((choice, index) => {
+        return { text: choice, isCorrect: index === currentQuestion.correct };
+      });
+      // 섞기
+      shuffleArray(currentOptions);
+      // 화면에 문제와 선택지 출력
+      let html = "<p>" + currentQuestion.question + "</p>";
+      currentOptions.forEach((opt, idx) => {
+        html += `<div class="option" data-index="${idx}">${opt.text}</div>`;
+      });
+      questionArea.innerHTML = html;
+      MathJax.typeset();
+      // 각 선택지에 클릭 이벤트 등록
+      document.querySelectorAll('.option').forEach(optionDiv => {
+        optionDiv.addEventListener('click', () => {
+          if (optionDiv.classList.contains('disabled')) return;
+          checkAnswer(parseInt(optionDiv.getAttribute('data-index')));
+        });
+      });
+      // 문제 타이머 시작 (하 난이도는 무제한)
+      if (questionTimeLimit !== Infinity) {
+        startQuestionTimer();
+      }
+    }
+    
+    // 문제 타이머
+    let timeLeft = questionTimeLimit;
+    function startQuestionTimer() {
+      timeLeft = questionTimeLimit;
+      clearInterval(questionTimerInterval);
+      questionTimerInterval = setInterval(() => {
+        timeLeft -= 0.1;
+        let percent = (timeLeft / questionTimeLimit) * 100;
+        energyBar.style.width = percent + "%";
+        if (timeLeft <= 0) {
+          clearInterval(questionTimerInterval);
+          handleTimeout();
+        }
+      }, 100);
+    }
+    
+    // 시간 초과 처리
+    function handleTimeout() {
+      disableOptions();
+      feedbackDiv.innerHTML = "시간 초과! 정답: " + getCorrectText();
+      lives--;
+      livesDisplay.innerText = "남은 기회: " + lives;
+      nextButton.disabled = false;
+      checkGameOver();
+    }
+    
+    // 정답 텍스트 반환
+    function getCorrectText() {
+      for (let opt of currentOptions) {
+        if (opt.isCorrect) return opt.text;
+      }
+      return "";
+    }
+    
+    // 선택지 비활성화
+    function disableOptions() {
+      document.querySelectorAll('.option').forEach(optionDiv => {
+        optionDiv.classList.add('disabled');
+      });
+    }
+    
+    // 답 체크
+    function checkAnswer(selectedIdx) {
+      clearInterval(questionTimerInterval);
+      disableOptions();
+      const selected = currentOptions[selectedIdx];
+      if (selected.isCorrect) {
+        feedbackDiv.innerText = "정답!";
+        score += pointsPerQuestion;
+        scoreDisplay.innerText = "점수: " + score;
+      } else {
+        feedbackDiv.innerHTML = "오답! 정답: " + getCorrectText();
+        lives--;
+        livesDisplay.innerText = "남은 기회: " + lives;
+      }
+      nextButton.disabled = false;
+      checkGameOver();
+    }
+    
+    // 다음 문제 버튼 클릭
+    nextButton.addEventListener('click', () => {
+      if (lives <= 0) return;
+      loadNextQuestion();
+    });
+    
+    // 남은 기회 확인 후 게임 오버 처리
+    function checkGameOver() {
+      if (lives <= 0) {
+        clearInterval(overallTimerInterval);
+        clearInterval(questionTimerInterval);
+        gameOver();
+      }
+    }
+    
+    // 게임 오버
+    function gameOver() {
+      gameScreen.classList.add('hidden');
+      gameoverScreen.classList.remove('hidden');
+      finalScoreP.innerText = "최종 점수: " + score;
+      finalTimeP.innerText = "총 경과 시간: " + totalTime + "초";
+    }
+
+    // 점수 전송 함수
+    async function saveData(game, name, score, elapsedTime) {
+      const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+      const requestData = {
+        game,
+        name,
+        score: parseInt(score, 10),
+        elapsedTime: parseInt(elapsedTime, 10)
+      };
+      try {
+        const response = await fetch(FUNCTION_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestData)
+        });
+        const responseData = await response.json();
+        if (response.ok) {
+          responsePre.innerText = `성공: ${JSON.stringify(responseData, null, 2)}`;
+        } else {
+          responsePre.innerText = `오류: ${JSON.stringify(responseData, null, 2)}`;
+        }
+      } catch (error) {
+        console.error('요청 실패:', error);
+        responsePre.innerText = `네트워크 오류: ${error.message}`;
+      }
+    }
+    
+    // 점수 전송 버튼
+    sendScoreButton.addEventListener('click', () => {
+      saveData("거듭제곤근 빈출 (1)", playerName, score, totalTime);
+    });
+  </script>
+</body>
+</html>
